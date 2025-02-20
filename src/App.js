@@ -17,6 +17,7 @@ function App() {
         >
           Learn React
         </a>
+        <h1> облачные плюшки !!! </h1>
       </header>
     </div>
   );
