@@ -1,0 +1,170 @@
+name: 'Advanced Image: Build and Push'
+
+on:
+  workflow_dispatch:
+
+  push:
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+    branches:
+      - 'main'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  # if the branch is the default branch, set env is prod, otherwise set env is dev
+  ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+
+jobs:
+  tests:
+    name: 'Run tests'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout GitHub Action'
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+#      - name: ESlint and other checks
+#        run: |
+#            npm run lint
+#            npm run type-check
+#            npm run format-check
+#            npm run test-coverage
+#            npm run test-coverage-report
+#            npm run test-coverage-report-check
+#            npm run test-coverage-report-upload
+
+  image:
+    name: 'Build and push Docker image'
+    runs-on: ubuntu-latest
+    needs: tests
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: 'Checkout GitHub Action'
+        uses: actions/checkout@v4
+        if: github.event_name != 'pull_request'
+
+      - name: 'Checkout GitHub Action'
+        uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Debug environment variables
+        uses: hmarr/debug-action@v3
+
+      - name: Determine image description for meta data
+        id: image-description
+        run: |
+          # If the headCommitMsg $(git show -s --format=%s) is empty, or less than 5 characters, set a default description
+          if [[ -z "$(git show -s --format=%s)" || $(git show -s --format=%s | wc -c) -lt 5 ]]; then
+            echo "description=Otus: Infrastructure platform." >> $GITHUB_OUTPUT
+          else
+            echo "description=headCommitMsg:$(git show -s --format=%s)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        env:
+          DOCKER_METADATA_SHORT_SHA_LENGTH: 8
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # dynamically set the branch name as a prefix
+            # date +%s ; 1611840548
+            # <branch>-<sha1>-<timestamp>
+            type=raw,value={{branch}}-{{sha}}-{{date 'X'}}
+            # set latest tag for default branch
+            type=raw,value=latest,enable={{is_default_branch}}
+          flavor: |
+            latest=auto
+          labels: |
+            maintainer=https://github.com/kksudo/
+            org.opencontainers.image.created={{commit_date 'YYYY-MM-DDTHH:mm:ss.SSS[Z]'}}
+            org.opencontainers.image.description=${{ steps.image-description.outputs.description }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=${{ github.repository }}
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          build-args: |
+            ENVIRONMENT=${{ env.ENVIRONMENT }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          context: .
+          file: ./Dockerfile
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+
+      - name: Adding a job summary using Markdown
+        id: image_summary
+        run: |
+          IMAGE_TAG=${{ steps.meta.outputs.version }}
+          BACKEND_IMAGE=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}" | tr '[:upper:]' '[:lower:]')
+          echo "BACKEND_IMAGE=$BACKEND_IMAGE" >> $GITHUB_OUTPUT
+
+          echo "## Job Summary" >> $GITHUB_STEP_SUMMARY
+          echo "Success!!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Image: [${BACKEND_IMAGE}](https://github.com/${{ github.repository }}/pkgs/container/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+    outputs:
+      image: ${{ steps.image_summary.outputs.BACKEND_IMAGE }}
+
+
+  deploy:
+    name: 'Deploy to Kubernetes'
+    runs-on: ubuntu-latest
+    needs: image
+    steps:
+      - name: 'Checkout GitHub Action'
+        uses: actions/checkout@v4
+
+      - name: Update docker image
+        run: |
+          sed -i "s|{{ image }}|${{ needs.image.outputs.image }}|g" k8s/deployment.yaml
+
+      - uses: actions-hub/kubectl@master
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+          KUBE_CONTEXT: default
+        with:
+          args: -n otus apply -f k8s/
+
+      - name: Adding a job summary using Markdown
+        run: |
+          echo "## Job Summary" >> $GITHUB_STEP_SUMMARY
+          echo "Success!!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Deployed to Kubernetes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
