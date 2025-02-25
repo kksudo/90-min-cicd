@@ -5,22 +5,26 @@ metadata:
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
+  ignoreApplicationDifferences:
+    - jqPathExpressions:
+      - .spec.source.helm.parameters
+      - .spec.source.helm.values
   generators:
     - list:
         elements:
-          - branch: develop  # Example parameter for branch-based deployment
+          - branch: develop
 
   template:
     metadata:
       name: 'cicd-{{.branch}}'
       annotations:
-        argocd-image-updater.argoproj.io/image-list: app=ghcr.io/kksudo/90-min-cicd:{{ print .branch }}-*
+        argocd-image-updater.argoproj.io/image-list: "app=ghcr.io/kksudo/90-min-cicd:{{ print .branch }}-*"
         argocd-image-updater.argoproj.io/app.allow-tags: regexp:^{{ print .branch }}-[a-f0-9]+-\d+$
 
         argocd-image-updater.argoproj.io/update-strategy: latest
         argocd-image-updater.argoproj.io/write-back-method: argocd
-        argocd-image-updater.argoproj.io/app.helm.image-name: app.image.repository
-        argocd-image-updater.argoproj.io/app.helm.image-tag: app.image.tag
+        argocd-image-updater.argoproj.io/app.helm.image-name: image.repository
+        argocd-image-updater.argoproj.io/app.helm.image-tag: image.tag
     spec:
       project: default
       source:
@@ -31,7 +35,6 @@ spec:
           values: |
             image:
               repository: ghcr.io/kksudo/90-min-cicd
-              tag: main-00e98d28-1740077035
             replicaCount: 1
             service:
               type: ClusterIP
@@ -41,12 +44,16 @@ spec:
       syncPolicy:
         automated:
           prune: false
-          selfHeal: false
+          selfHeal: true
         syncOptions:
           - CreateNamespace=true
-          - ApplyOutOfSyncOnly=true
+          - ApplyOutOfSyncOnly=false
       ignoreDifferences:
         - group: apps
           kind: Deployment
           jsonPointers:
             - /spec/template/spec/containers/0/image
+        - group: argoproj.io
+          kind: Application
+          jsonPointers:
+            - /spec/source/helm/values
