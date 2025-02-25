@@ -1,0 +1,29 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/kksudo/90-min-cicd
+  tag: main-00e98d28-1740077035
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "180"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "180"
+  hosts:
+    - host: otus.kazakov.xyz
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

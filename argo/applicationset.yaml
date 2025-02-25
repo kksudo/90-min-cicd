@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cicd-appset
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - branch: develop  # Example parameter for branch-based deployment
+
+  template:
+    metadata:
+      name: 'cicd-{{.branch}}'
+      annotations:
+        argocd-image-updater.argoproj.io/image-list: app=ghcr.io/kksudo/90-min-cicd:{{ print .branch }}-*
+        argocd-image-updater.argoproj.io/app.allow-tags: regexp:^{{ print .branch }}-[a-f0-9]+-\d+$
+
+        argocd-image-updater.argoproj.io/update-strategy: latest
+        argocd-image-updater.argoproj.io/write-back-method: argocd
+        argocd-image-updater.argoproj.io/app.helm.image-name: app.image.repository
+        argocd-image-updater.argoproj.io/app.helm.image-tag: app.image.tag
+    spec:
+      project: default
+      source:
+        repoURL: 'https://github.com/kksudo/90-min-cicd.git'
+        targetRevision: "{{ print .branch }}"
+        path: .  # Assuming Helm chart is in root directory
+        helm:
+          values: |
+            image:
+              repository: ghcr.io/kksudo/90-min-cicd
+              tag: main-00e98d28-1740077035
+            replicaCount: 1
+            service:
+              type: ClusterIP
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: cicd-{{.branch}}
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: false
+        syncOptions:
+          - CreateNamespace=true
+          - ApplyOutOfSyncOnly=true
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/template/spec/containers/0/image
