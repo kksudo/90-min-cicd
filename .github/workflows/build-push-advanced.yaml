@@ -161,10 +161,6 @@ jobs:
       - name: 'Checkout GitHub Action'
         uses: actions/checkout@v4
 
-      - name: Update docker image
-        run: |
-          sed -i "s|{{ image }}|${{ needs.image.outputs.image }}|g" k8s/deployment.yaml
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -183,6 +179,13 @@ jobs:
 
       - name: Update kube config
         run: aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_REGION
+
+      - name: Update docker image
+        run: |
+          sed -i "s|{{ image }}|${{ needs.image.outputs.image }}|g" k8s/deployment.yaml
+
+      - name: Deploy to Kubernetes
+        run: kubectl apply -n otus -f k8s/
 
       - name: Adding a job summary using Markdown
         run: |
