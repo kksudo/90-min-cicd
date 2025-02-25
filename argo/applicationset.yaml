@@ -26,7 +26,7 @@ spec:
       source:
         repoURL: 'https://github.com/kksudo/90-min-cicd.git'
         targetRevision: "{{ print .branch }}"
-        path: .  # Assuming Helm chart is in root directory
+        path: helm/app
         helm:
           values: |
             image:
