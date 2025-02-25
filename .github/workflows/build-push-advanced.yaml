@@ -185,7 +185,9 @@ jobs:
           sed -i "s|{{ image }}|${{ needs.image.outputs.image }}|g" k8s/deployment.yaml
 
       - name: Deploy to Kubernetes
-        run: kubectl apply -n otus -f k8s/
+        run: |
+          kubectl create ns otus || true
+          kubectl apply -n otus -f k8s/
 
       - name: Adding a job summary using Markdown
         run: |
