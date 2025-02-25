@@ -19,6 +19,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   AWS_REGION: eu-central-1
+  EKS_CLUSTER_NAME: lwf-demo-cluster-terraform
   # if the branch is the default branch, set env is prod, otherwise set env is dev
   ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
 
