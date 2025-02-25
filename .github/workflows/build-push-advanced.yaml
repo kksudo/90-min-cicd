@@ -109,8 +109,8 @@ jobs:
             type=raw,value={{branch}}-{{sha}}-{{date 'X'}}
             # set latest tag for default branch
             type=raw,value=latest,enable={{is_default_branch}}
-            # If the branch has commit, set the commit tag
-            type=raw,value={{commit}},enable={{commit}}
+            # tag event
+            type=ref,enable=true,priority=600,prefix=,suffix=,event=tag
           flavor: |
             latest=auto
           labels: |
