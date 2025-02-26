@@ -35,7 +35,7 @@ RUN \
 
 
 # 2. For Nginx setup
-FROM nginx:alpine
+FROM nginx:alpine as final
 
 # Copy config nginx
 COPY --from=build /app/.nginx/nginx.conf /etc/nginx/conf.d/default.conf
