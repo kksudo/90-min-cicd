@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: cicd-appset
+  name: cicd-appset-preview
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -9,12 +9,20 @@ spec:
     - jqPathExpressions:
       - .spec.source.helm.parameters
   generators:
-    - list:
-        elements:
-          - branch: develop
+    - pullRequest:
+        github:
+          api: https://api.github.com/
+          owner: kksudo
+          repo: 90-min-cicd
+          labels:
+            - preview
+          tokenRef:
+            secretName: github-token
+            key: token
+        requeueAfterSeconds: 60
   template:
     metadata:
-      name: 'cicd-{{.branch}}'
+      name: 'cicd-{{ .branch | replace "/" "-" | trunc 50 }}-preview'
       annotations:
         argocd-image-updater.argoproj.io/image-list: "app=ghcr.io/kksudo/90-min-cicd:{{ print .branch }}-*"
         argocd-image-updater.argoproj.io/app.allow-tags: regexp:^{{ print .branch }}-[a-f0-9]+-\d+$
@@ -33,12 +41,12 @@ spec:
           values: |
             image:
               repository: ghcr.io/kksudo/90-min-cicd
-            replicaCount: 1
+            replicaCount: 2
             service:
               type: ClusterIP
       destination:
         server: https://kubernetes.default.svc
-        namespace: cicd-{{.branch}}
+        namespace: 'preview-{{ .head_short_sha_7 }}'
       syncPolicy:
         automated:
           prune: false
