@@ -6,7 +6,7 @@ on:
       deploy:
         description: 'Enable deploy to Kubernetes'
         required: false
-        default: 'false'
+        default: false
         type: boolean
 
   push:
