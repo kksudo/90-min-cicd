@@ -17,7 +17,6 @@ function App() {
         >
           Learn React
         </a>
-        <h1> понятно... отдельная тулза </h1>
       </header>
     </div>
   );
